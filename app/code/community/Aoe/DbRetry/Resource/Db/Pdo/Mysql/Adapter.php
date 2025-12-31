@@ -39,13 +39,17 @@ class Aoe_DbRetry_Resource_Db_Pdo_Mysql_Adapter extends Magento_Db_Adapter_Pdo_M
                     Mage::dispatchEvent('aoe_dbretry_exception', ['try' => $try, 'exception' => $e]);
                     if ($try < $maxTries) {
                         $message = null;
-                        if ($e instanceof PDOException) {
+                        if ($e instanceof PDOException || $e instanceof Zend_Db_Adapter_Exception) {
                             $message = $e->getMessage();
-                        } elseif ($e->getPrevious() instanceof PDOException) {
+                        } elseif ($e->getPrevious() instanceof PDOException || $e->getPrevious() instanceof Zend_Db_Adapter_Exception) {
                             $message = $e->getPrevious()->getMessage();
                         } else {
-                            Mage::log("Exception is instance of " . get_class($e), Zend_Log::DEBUG);
-                            Mage::log("Previous Exception is instance of " . get_class($e->getPrevious()), Zend_Log::DEBUG);
+                            Mage::logException($e);
+                            if (!empty($e->getPrevious()) {
+                                Mage::logException($e);
+                            } else {
+                                Mage::logException($e->getPrevious());
+                            }
                         }
                         if ($message && in_array($message, $this->retryOnMessages)) {
                             $sleepSeconds = pow($try, $retryPower);
