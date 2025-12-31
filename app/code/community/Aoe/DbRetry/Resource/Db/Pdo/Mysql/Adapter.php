@@ -45,7 +45,7 @@ class Aoe_DbRetry_Resource_Db_Pdo_Mysql_Adapter extends Magento_Db_Adapter_Pdo_M
                             $message = $e->getPrevious()->getMessage();
                         } else {
                             Mage::logException($e);
-                            if (!empty($e->getPrevious()) {
+                            if (!empty($e->getPrevious())) {
                                 Mage::logException($e);
                             } else {
                                 Mage::logException($e->getPrevious());
