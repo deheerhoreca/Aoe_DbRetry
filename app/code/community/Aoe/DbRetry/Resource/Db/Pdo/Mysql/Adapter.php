@@ -36,6 +36,8 @@ class Aoe_DbRetry_Resource_Db_Pdo_Mysql_Adapter extends Magento_Db_Adapter_Pdo_M
                     $this->_transactionLevel = 0;
                     $this->closeConnection();
                 }
+                // Every failed query has dispatched this event, retried or not
+                Mage::dispatchEvent('aoe_dbretry_exception', ['try' => 1, 'exception' => $e]);
                 throw $e;
             }
         }
