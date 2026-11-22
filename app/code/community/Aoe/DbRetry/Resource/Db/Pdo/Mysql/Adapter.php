@@ -26,7 +26,18 @@ class Aoe_DbRetry_Resource_Db_Pdo_Mysql_Adapter extends Magento_Db_Adapter_Pdo_M
         // run outside the transaction: committed on its own, without the writes before it. Varien's own query()
         // rolls the transaction back and throws, so whoever started the transaction can run it again from the start.
         if ($this->_transactionLevel > 0) {
-            return parent::query($sql, $bind);
+            try {
+                return parent::query($sql, $bind);
+            } catch (Exception $e) {
+                // Varien forgets the transaction after a deadlock or a lock wait timeout, but not after a lost
+                // connection. That ended the transaction too: forget it here, and connect again on the next query.
+                // Otherwise the next beginTransaction() sends no BEGIN and its statements run outside a transaction.
+                if ($this->isLostConnection($e)) {
+                    $this->_transactionLevel = 0;
+                    $this->closeConnection();
+                }
+                throw $e;
+            }
         }
 
         $this->_debugTimer();
@@ -81,6 +92,25 @@ class Aoe_DbRetry_Resource_Db_Pdo_Mysql_Adapter extends Magento_Db_Adapter_Pdo_M
         $this->_debugStat(self::DEBUG_QUERY, $sql, $bind, $result);
 
         return $result;
+    }
+
+    /**
+     * Whether the exception, or the one it wraps, says the connection to the server was lost
+     * ("2013 Lost connection ..." during a query, or "2006 MySQL server has gone away").
+     *
+     * @param Exception $e
+     *
+     * @return bool
+     */
+    protected function isLostConnection(Exception $e)
+    {
+        foreach ([$e, $e->getPrevious()] as $exception) {
+            if ($exception && preg_match('/General error: (2006|2013) /', $exception->getMessage())) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
