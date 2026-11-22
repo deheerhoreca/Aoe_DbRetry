@@ -9,7 +9,8 @@ class Aoe_DbRetry_Resource_Db_Pdo_Mysql_Adapter extends Magento_Db_Adapter_Pdo_M
     ];
 
     /**
-     * Special handling for PDO query().
+     * Special handling for PDO query(): retries a statement that hit a lost connection, a lock wait timeout or a
+     * deadlock, but only outside a transaction. Inside one the exception is thrown (see below).
      * All bind parameter names must begin with ':'.
      *
      * @param string|Zend_Db_Select $sql  The SQL statement with placeholders.
@@ -20,6 +21,14 @@ class Aoe_DbRetry_Resource_Db_Pdo_Mysql_Adapter extends Magento_Db_Adapter_Pdo_M
      */
     public function query($sql, $bind = [])
     {
+        // Inside a transaction a retry of this one statement is wrong. InnoDB rolls the whole transaction back on a
+        // deadlock, and a lost connection ends it, so the retried statement (and every statement after it) would
+        // run outside the transaction: committed on its own, without the writes before it. Varien's own query()
+        // rolls the transaction back and throws, so whoever started the transaction can run it again from the start.
+        if ($this->_transactionLevel > 0) {
+            return parent::query($sql, $bind);
+        }
+
         $this->_debugTimer();
         $result = null;
         try {
