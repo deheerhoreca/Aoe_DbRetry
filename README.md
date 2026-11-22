@@ -18,6 +18,12 @@ It replaces the DB adapter with an extended version that will retry queries if t
 These three situations are detected via exception messages.
 The underlying (parent) code actually wraps at least one of these exceptions up inside another exception, so we check for that and unwrap the exception if needed.
 
+## Transactions
+A statement is only retried **outside** a transaction. Inside one, the exception is thrown after the adapter has handled it the way Varien's own `query()` does (a deadlock or lock wait timeout marks the transaction as rolled back).
+InnoDB rolls the whole transaction back on a deadlock, and a lost connection ends it. Re-running just the failed statement would execute it, and every statement after it, outside the transaction: committed on its own, without the writes before it (for example a child row inserted without its parent, which fails as a foreign key violation).
+Whoever started the transaction has to run it again from the start.
+This relies on OpenMage's adapter (the guarded `rollBack()` and the implicit-rollback detection in `query()`); the module is only used with OpenMage 20 here, not with the Magento CE 1.8/1.9 adapter.
+
 ## Configuration
 * </app/etc/local.xml>/config/global/resources/{connection name}/connection/retries
     * {connection_name} is referring to the named connection, like 'default_setup' which is the default connection
